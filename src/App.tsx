@@ -617,7 +617,7 @@ export default function App() {
 
             {/* UPCOMING PRIORITIES */}
             <div className="text-xs sm:text-sm md:text-base font-bold text-[#0d47a1] border-l-4 border-[#0d47a1] pl-3 py-1.5 bg-blue-50 rounded-r-lg mb-4">
-              ⚡ Próximas Prioridades Académicas (Ordenadas Automáticamente)
+              ⚡ Próximas Prioridades Académicas
             </div>
 
             {/* MOBILE PRIORITIES CARDS */}
