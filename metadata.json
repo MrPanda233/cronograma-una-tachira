@@ -1,6 +1,6 @@
 {
   "name": "Cronograma de Entregas UNA Táchira - Lapso 2026-2",
-  "description": "Sistema dinámico en tiempo real para el seguimiento de entregas académicas, evaluaciones y directorio de asesores de la Universidad Nacional Abierta (UNA) Centro Local Táchira.",
+  "description": "Cronograma de evaluaciones y entregas UNA Táchira.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
