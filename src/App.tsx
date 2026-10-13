@@ -431,7 +431,7 @@ export default function App() {
                     <Laptop className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="truncate">
-                    <h5 className="font-bold text-xs sm:text-sm text-blue-900 truncate">Blog Informática 116 (Cronograma Propio)</h5>
+                    <h5 className="font-bold text-xs sm:text-sm text-blue-900 truncate">Blog Informática 116</h5>
                     <p className="text-[11px] sm:text-xs text-gray-500 truncate">Ver Objetivos I.1 a II.3 de Ing. Danny Colmenares</p>
                   </div>
                 </div>
