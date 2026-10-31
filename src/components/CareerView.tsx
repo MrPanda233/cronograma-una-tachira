@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { CalendarDays, Download, Eye, FolderDown, GraduationCap, MessageCircle } from 'lucide-react';
+import { CalendarDays, Download, Eye, FolderDown, Globe, GraduationCap, Info } from 'lucide-react';
 import { ACTIVE_LAPSO, ACTIVE_SEMESTER, CAREERS, planDownloadUrl, planViewUrl, type CareerId, type Subject } from '../data/careers';
-import { ADVISORS, CENTRAL } from '../data/people';
+import { ADVISORS, CENTRAL, type Person } from '../data/people';
 import { NextAlert, ScheduleList } from './Schedule';
 import { Chips, CopyButton, EASE_OUT, EmailLink, SectionHeading, SubjectTag, useUi } from './ui';
 
 function SubjectRow({ subject }: { subject: Subject }) {
-  const advisor: { name: string; email?: string } = ADVISORS[subject.advisor];
+  const advisor: Person = ADVISORS[subject.advisor];
   const central = subject.central ? CENTRAL[subject.central] : null;
   return (
     <li className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
@@ -24,6 +24,11 @@ function SubjectRow({ subject }: { subject: Subject }) {
               ? <span className="ml-1 inline-flex items-center"><EmailLink email={advisor.email} className="text-xs" /><CopyButton text={advisor.email} /></span>
               : <span className="ml-1 text-xs text-slate-500">(correo por confirmar)</span>}
           </div>
+          {subject.note && (
+            <p className="mt-1.5 flex max-w-2xl items-start gap-1.5 rounded-lg bg-blue-50 px-2.5 py-2 text-xs leading-relaxed text-blue-950">
+              <Info className="mt-px h-3.5 w-3.5 shrink-0 text-brand-700" aria-hidden="true" /> {subject.note}
+            </p>
+          )}
           {central && (
             <p className="text-xs text-slate-600">
               Corrige TP y TSP en nivel central: <span className="font-bold">{central.name}</span>, <EmailLink email={central.email} />
@@ -32,10 +37,20 @@ function SubjectRow({ subject }: { subject: Subject }) {
         </div>
       </div>
       {subject.plan ? (
-        <div className="flex shrink-0 gap-2 pl-11 lg:pl-0">
+        <div className="flex shrink-0 flex-wrap gap-2 pl-11 lg:pl-0">
+          {advisor.link && (
+            <a
+              href={advisor.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 text-sm font-bold text-white transition-colors hover:bg-brand-800"
+            >
+              <Globe className="h-4 w-4" aria-hidden="true" /> Blog del asesor
+            </a>
+          )}
           <a
             href={planDownloadUrl(subject.plan)}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 text-sm font-bold text-white transition-colors hover:bg-brand-800"
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 text-sm font-bold transition-colors ${advisor.link ? 'text-brand-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50' : 'bg-brand-700 text-white hover:bg-brand-800'}`}
             aria-label={`Descargar plan de curso de ${subject.name}`}
           >
             <Download className="h-4 w-4" aria-hidden="true" /> Plan de curso
@@ -81,9 +96,6 @@ export function CareerView({ careerId, today }: { careerId: CareerId; today: str
           <div className="flex flex-wrap gap-2">
             <a href={career.plansFolder} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-brand-700 ring-1 ring-inset ring-blue-200 transition-colors hover:bg-blue-50">
               <FolderDown className="h-4 w-4" aria-hidden="true" /> Todos los planes
-            </a>
-            <a href={career.group} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-emerald-800 ring-1 ring-inset ring-emerald-300 transition-colors hover:bg-emerald-50">
-              <MessageCircle className="h-4 w-4" aria-hidden="true" /> Grupo de WhatsApp
             </a>
           </div>
         </div>

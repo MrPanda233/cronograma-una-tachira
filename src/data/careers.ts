@@ -1,11 +1,14 @@
 // Pensum de cada carrera, ordenado por semestre.
-// Para el próximo lapso: cambia ACTIVE_SEMESTER y agrega las entregas en schedule.ts.
+// Para el próximo lapso: cambia ACTIVE_LAPSO, ACTIVE_SEMESTER y LAPSO_END, y carga las entregas en schedule.ts.
+// El semestre NO cambia al pasar la última entrega: solo cambia cuando termina el lapso académico.
 import type { AdvisorId, CentralId } from './people';
 
 export type CareerId = '281' | '280';
 
 export const ACTIVE_LAPSO = '2026-2';
 export const ACTIVE_SEMESTER = 'I';
+// Último día del lapso (YYYY-MM-DD). Pendiente de confirmar.
+export const LAPSO_END: string | null = null;
 
 export interface Subject {
   code: string;
@@ -15,6 +18,7 @@ export interface Subject {
   advisor: AdvisorId;
   central?: CentralId;
   plan?: string; // id del PDF en Google Drive
+  note?: string; // aviso propio de la asignatura
 }
 
 export interface SemesterGroup {
@@ -30,7 +34,6 @@ export interface Career {
   short: string;
   totalUC: number;
   maxUC: number;
-  group: string;
   plansFolder: string;
   semesters: SemesterGroup[];
 }
@@ -38,19 +41,20 @@ export interface Career {
 export const planDownloadUrl = (id: string) => `https://drive.google.com/uc?export=download&id=${id}`;
 export const planViewUrl = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 
+const NOTE_116 = 'Sigue el blog del asesor: ahí están los objetivos y su metodología. Los trabajos se hacen en herramientas en línea, como Google Docs, y se entregan con el enlace compartido.';
+
 const CAREER_281: Career = {
   id: '281',
   name: 'TSU Higiene y Seguridad Industrial',
   short: 'TSU HSI',
   totalUC: 107,
   maxUC: 22,
-  group: 'https://chat.whatsapp.com/FKmVjp6l73kJwSvn8rXnV8',
   plansFolder: 'https://drive.google.com/drive/folders/1dNFgvQTl1P0PCfxBDJF9wGpqIdAOr21K',
   semesters: [
     {
       id: 'I', label: 'Semestre I', subjects: [
         { code: '115', name: 'Lengua y Comunicación', uc: 3, advisor: 'jaimes', plan: '1rj4t95dOXUtvWVJcL6MCZ0U2UsQ1LWgw' },
-        { code: '116', name: 'Introducción a la Informática', uc: 3, advisor: 'colmenares', plan: '1V-6bSlWKMSO6C9j6sYkbbHtVLMPc5czt' },
+        { code: '116', name: 'Introducción a la Informática', uc: 3, advisor: 'colmenares', plan: '1V-6bSlWKMSO6C9j6sYkbbHtVLMPc5czt', note: NOTE_116 },
         { code: '117', name: 'Ambiente y Desarrollo Sostenible en Venezuela', uc: 3, advisor: 'nunez', plan: '1nY6MY8-UpsuocaLT0QZ0k0XEV5j48G1g' },
         { code: '177', name: 'Matemática I', uc: 5, advisor: 'gmoreno', plan: '12S3kZJn2gk6cE29pNAzwvHSlpmwpkbmD' },
         { code: '200', name: 'Introducción a la Ingeniería Industrial', uc: 3, advisor: 'roa', plan: '11brVy0-LUOW1N1r0BBgt02cwRQS9x49i' },
@@ -115,14 +119,13 @@ const CAREER_280: Career = {
   short: 'Ing. Industrial',
   totalUC: 184,
   maxUC: 24,
-  group: 'https://chat.whatsapp.com/DdTkP1Ve3jEBzi7Q99aH5O',
   plansFolder: 'https://drive.google.com/drive/folders/1_AoiymGgijthOjKPaGdaV2udggPKGhvS',
   semesters: [
     {
       id: 'I', label: 'Semestre I', subjects: [
         { code: '107', name: 'Lógica', uc: 3, advisor: 'moncada', plan: '1YXWPekzqCuBDjOE4E7CY5JLLjSdTPtWX' },
         { code: '115', name: 'Lengua y Comunicación', uc: 3, advisor: 'jaimes', plan: '1tmjpwUvL_Khah3dHp54qWFrQFBiY02bv' },
-        { code: '116', name: 'Introducción a la Informática', uc: 3, advisor: 'colmenares', plan: '1jeMq-ICmp2sOE2sn8epLTyhCPEPHPvgr' },
+        { code: '116', name: 'Introducción a la Informática', uc: 3, advisor: 'colmenares', plan: '1jeMq-ICmp2sOE2sn8epLTyhCPEPHPvgr', note: NOTE_116 },
         { code: '177', name: 'Matemática I', uc: 5, advisor: 'gmoreno', plan: '1DOgd8FVJIBEm8u-fVcHp4lMwXYR4q913' },
         { code: '200', name: 'Introducción a la Ingeniería Industrial', uc: 3, advisor: 'roa', central: 'dcontreras', plan: '1bwiY-LhxmqZlkz_Ci65MKeML2tD9BoJq' },
       ],

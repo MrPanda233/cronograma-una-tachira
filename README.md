@@ -6,12 +6,21 @@ Por ahora reúne las carreras 281 (TSU Higiene y Seguridad Industrial) y 280 (In
 
 ## Ejecución local
 
-**Requisito:** Node.js. No hace falta ningún archivo `.env`: el sitio no usa claves ni servicios externos.
+**Requisito:** Node.js. Para ver solo la web no hace falta ningún archivo `.env`.
 
 ```bash
 npm install
 npm run dev
 ```
+
+## Comentarios
+
+Los atiende el Worker de `worker/index.ts` con la base D1 `cronograma-comentarios` (esquema en `worker/schema.sql`).
+
+- Para probarlos en local, crea `.dev.vars` con las claves de prueba de Turnstile y ejecuta `npm run dev:worker`.
+- En producción hacen falta dos valores: `TURNSTILE_SITE_KEY` (pública, en `wrangler.jsonc`) y `TURNSTILE_SECRET` (secreto del Worker, nunca en el repo). Sin ellos los comentarios se pueden leer, pero no publicar.
+- `COMMENTS_OPEN: "false"` en `wrangler.jsonc` cierra los comentarios.
+- Para borrar un comentario: `UPDATE comments SET status = 'hidden' WHERE id = '...'`.
 
 ## Publicación
 

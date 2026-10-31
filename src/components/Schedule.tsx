@@ -3,7 +3,8 @@ import { AnimatePresence, m } from 'motion/react';
 import { AlarmClock, Archive, BellRing, BookOpen, CalendarDays, ChevronDown, ExternalLink, Laptop, Mail, Send, Upload } from 'lucide-react';
 import type { CareerId } from '../data/careers';
 import { BLOG_116_URL, BLOG_MATE_URL } from '../data/people';
-import { EVALUATIONS, MISSING_DATES, type Evaluation } from '../data/schedule';
+import { ACTIVE_LAPSO, LAPSO_END } from '../data/careers';
+import { EVALUATIONS, LINK_DELIVERY_CODES, MISSING_DATES, type Evaluation } from '../data/schedule';
 import { daysBetween, dueDate, formatDate, formatWeekday, isPending, nextKeyDate } from '../lib/dates';
 import { Chips, EASE_OUT, EmailLink, SectionHeading, StatusBadge, SubjectTag, useUi } from './ui';
 
@@ -16,9 +17,14 @@ const sortByNextDate = (evals: Evaluation[], today: string) =>
 
 // En un TSP distingue si falta la publicación o ya corre el plazo para entregar.
 const nextStep = (ev: Evaluation, today: string) => {
-  if (ev.kind === 'TSP' && today < ev.dateStr) return 'Se publica';
+  if (ev.kind === 'TSP' && today <= ev.dateStr) return 'Se publica';
   return 'Entrega';
 };
+
+function DeliveryNote({ ev }: { ev: Evaluation }) {
+  if (!LINK_DELIVERY_CODES.includes(ev.code)) return null;
+  return <p className="mt-0.5 text-xs font-bold text-brand-700">Se entrega por enlace compartido</p>;
+}
 
 function CareerNote({ ev }: { ev: Evaluation }) {
   if (ev.careers.length > 1) return null;
@@ -41,14 +47,17 @@ export function NextAlert({ career, today }: { career: Filter; today: string }) 
   const nextDate = nextKeyDate(pending[0], today);
   const items = pending.filter(e => nextKeyDate(e, today) === nextDate);
   const days = daysBetween(today, nextDate);
-  const title = days === 0 ? '¡Hay fechas importantes hoy!' : days === 1 ? 'Próxima fecha: mañana' : `Próxima fecha en ${days} días`;
+  const delivery = items.some(e => nextStep(e, today) === 'Entrega');
+  const title = days === 0
+    ? (delivery ? '¡Hoy es día de entrega!' : '¡Hoy se publica un TSP!')
+    : days === 1 ? 'Próxima fecha: mañana' : `Próxima fecha en ${days} días`;
   return (
     <m.section
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: EASE_OUT }}
       aria-labelledby="proxima-fecha"
-      className={`mb-6 rounded-2xl p-4 text-white shadow-[0_10px_30px_-12px_rgba(194,65,12,0.55)] sm:p-5 md:mb-8 ${days === 0 ? 'bg-red-700' : 'bg-orange-700'}`}
+      className={`mb-6 rounded-2xl p-4 text-white sm:p-5 md:mb-8 ${days === 0 ? 'alerta-hoy bg-red-700' : 'bg-orange-700 shadow-[0_10px_30px_-12px_rgba(194,65,12,0.55)]'}`}
     >
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
@@ -99,6 +108,7 @@ export function ScheduleList({ career, today }: { career: Filter; today: string 
                 <CareerNote ev={ev} />
               </div>
               <p className="text-sm leading-relaxed text-slate-700"><strong className="text-ink">{ev.evalType}:</strong> {ev.description}</p>
+              <DeliveryNote ev={ev} />
               <div className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
                 <p className="font-bold text-slate-800">{ev.advisor}</p>
                 <EmailLink email={ev.email} />
@@ -137,6 +147,7 @@ export function ScheduleList({ career, today }: { career: Filter; today: string 
                     <td className="px-4 py-3.5">
                       <p className="font-bold">{ev.evalType}</p>
                       <p className="max-w-md leading-relaxed text-slate-700">{ev.description}</p>
+                      <DeliveryNote ev={ev} />
                     </td>
                     <td className="px-4 py-3.5 text-sm">
                       <p className="font-bold text-slate-800">{ev.advisor}</p>
@@ -152,13 +163,15 @@ export function ScheduleList({ career, today }: { career: Filter; today: string 
 
       {upcoming.length === 0 && (
         <p className="mb-4 rounded-2xl bg-white p-6 text-center text-sm text-slate-600 ring-1 ring-slate-200">
-          No quedan entregas pendientes en este lapso. Revisa el historial más abajo.
+          {LAPSO_END && today > LAPSO_END
+            ? `El lapso ${ACTIVE_LAPSO} terminó. El próximo cronograma se publicará cuando salgan las fechas.`
+            : `Ya pasaron todas las entregas cargadas. El lapso ${ACTIVE_LAPSO} sigue en curso.`}
         </p>
       )}
 
       {missing.map(item => (
         <p key={item.code} className="mb-4 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-950 ring-1 ring-inset ring-blue-200">
-          Las fechas de {item.code} {item.name} ({item.career}) aún no están en este cronograma. Consúltalas en el plan de curso.
+          Las fechas de {item.code} {item.name} ({item.career}) aún no están en este cronograma. Consúltalas con tu asesor.
         </p>
       ))}
 

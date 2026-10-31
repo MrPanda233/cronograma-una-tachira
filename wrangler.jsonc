@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cronograma-una-tachira",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cronograma-comentarios",
+      "database_id": "4ac44f88-9057-4779-ac98-14517d259739"
+    }
+  ],
+  "vars": {
+    // Clave pública del captcha. La clave secreta va aparte, como secreto del Worker (TURNSTILE_SECRET).
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFtoUyckXGvLVIHH",
+    "TURNSTILE_HOST": "cronograma-una-tachira.hsi281.workers.dev",
+    // Interruptor para cerrar los comentarios sin tocar el código: "false".
+    "COMMENTS_OPEN": "true"
+  },
+  "observability": { "enabled": true }
+}

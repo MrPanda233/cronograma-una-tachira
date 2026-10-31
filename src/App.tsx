@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LazyMotion, MotionConfig, m } from 'motion/react';
 import {
-  BookOpen, CalendarClock, CalendarDays, Check, CircleHelp, Clock, GraduationCap, HardHat, Info, Mail, Users, Wrench,
+  BookOpen, CalendarClock, CalendarDays, Check, CircleHelp, Clock, GraduationCap, HardHat, Info, Mail, MessagesSquare, Users, Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { CareerView } from './components/CareerView';
 import { Directory } from './components/Directory';
-import { Help } from './components/Help';
 import { LinksView } from './components/LinksView';
 import { ScheduleView } from './components/Schedule';
 import { CopyButton, EASE_OUT, UiContext } from './components/ui';
+import { ACTIVE_LAPSO, ACTIVE_SEMESTER } from './data/careers';
 import { SEDE_EMAIL } from './data/people';
 import { getCaracasDateKey } from './lib/dates';
 
-type Tab = 'cronograma' | '281' | '280' | 'asesores' | 'ayuda' | 'enlaces';
+type Tab = 'cronograma' | '281' | '280' | 'asesores' | 'ayuda' | 'enlaces' | 'comentarios';
 
 const TABS: { id: Tab; label: string; short: string; toast: string; Icon: LucideIcon }[] = [
   { id: 'cronograma', label: 'Cronograma general', short: 'Cronograma', toast: 'Cronograma general', Icon: CalendarDays },
@@ -22,6 +22,7 @@ const TABS: { id: Tab; label: string; short: string; toast: string; Icon: Lucide
   { id: 'asesores', label: 'Asesores', short: 'Asesores', toast: 'Directorio de asesores', Icon: Users },
   { id: 'ayuda', label: 'Ayuda', short: 'Ayuda', toast: 'Ayuda y preguntas', Icon: CircleHelp },
   { id: 'enlaces', label: 'Enlaces', short: 'Enlaces', toast: 'Enlaces oficiales', Icon: BookOpen },
+  { id: 'comentarios', label: 'Comentarios', short: 'Comentarios', toast: 'Comentarios', Icon: MessagesSquare },
 ];
 
 const tabFromHash = (): Tab => {
@@ -30,6 +31,10 @@ const tabFromHash = (): Tab => {
 };
 
 const loadMotionFeatures = () => import('./motion-features').then(mod => mod.default);
+
+// Secciones grandes: se descargan solo cuando alguien las abre.
+const Help = lazy(() => import('./components/Help').then(mod => ({ default: mod.Help })));
+const Comments = lazy(() => import('./components/Comments').then(mod => ({ default: mod.Comments })));
 
 // Reloj aislado: se actualiza cada segundo sin volver a dibujar toda la página.
 function LiveClock() {
@@ -137,7 +142,7 @@ export default function App() {
               <h1 className="text-balance text-[1.75rem] font-extrabold leading-tight tracking-tight sm:text-4xl">
                 Cronograma de entregas
               </h1>
-              <p className="mt-1 text-base font-bold text-blue-100 sm:text-lg">Lapso 2026-2, Semestre I</p>
+              <p className="mt-1 text-base font-bold text-blue-100 sm:text-lg">Lapso {ACTIVE_LAPSO}, Semestre {ACTIVE_SEMESTER}</p>
               <p className="mx-auto mt-3 max-w-xl text-balance text-sm text-blue-50 sm:text-base">
                 Hecho por estudiantes, para estudiantes del Centro Local Táchira
               </p>
@@ -180,8 +185,8 @@ export default function App() {
                       className={`relative flex min-h-12 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-1 py-3 text-sm font-bold transition-colors sm:px-3 ${active ? 'text-brand-800' : 'text-slate-500 hover:text-slate-900'}`}
                     >
                       <Icon className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
-                      <span className="md:hidden">{tab.short}</span>
-                      <span className="hidden md:inline">{tab.label}</span>
+                      <span className="lg:hidden">{tab.short}</span>
+                      <span className="hidden lg:inline">{tab.label}</span>
                       {active && (
                         <m.span
                           layoutId="tab-underline"
@@ -208,7 +213,10 @@ export default function App() {
                   {activeTab === '281' && <CareerView careerId="281" today={today} />}
                   {activeTab === '280' && <CareerView careerId="280" today={today} />}
                   {activeTab === 'asesores' && <Directory />}
-                  {activeTab === 'ayuda' && <Help />}
+                  <Suspense fallback={<p className="py-10 text-center text-sm text-slate-600">Cargando</p>}>
+                    {activeTab === 'ayuda' && <Help />}
+                    {activeTab === 'comentarios' && <Comments />}
+                  </Suspense>
                   {activeTab === 'enlaces' && <LinksView />}
                 </m.div>
               </AnimatePresence>
@@ -219,7 +227,7 @@ export default function App() {
               <div className="mx-auto max-w-6xl px-4 pb-6 pt-8 sm:px-6">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-xl space-y-2 text-sm leading-relaxed">
-                    <p className="text-base font-bold text-white">Cronograma de entregas, lapso 2026-2</p>
+                    <p className="text-base font-bold text-white">Cronograma de entregas, lapso {ACTIVE_LAPSO}</p>
                     <p>Hecho por estudiantes, para estudiantes del Centro Local Táchira.</p>
                     <p>Por ahora reúne las carreras TSU Higiene y Seguridad Industrial (281) e Ingeniería Industrial (280). Iremos sumando más carreras.</p>
                   </div>

@@ -34,7 +34,10 @@ export function LinksView() {
         <LinkList links={DOCUMENT_LINKS} Icon={FileText} />
       </section>
       <section>
-        <SectionHeading Icon={MessageCircle} title="Canales y grupos de WhatsApp" />
+        <SectionHeading Icon={MessageCircle} title="Canales de WhatsApp" />
+        <p className="-mt-2 mb-4 max-w-2xl text-sm text-slate-600">
+          Son canales para leer avisos, no chats. Para preguntar, escríbele a tu asesor.
+        </p>
         <LinkList links={WHATSAPP_LINKS} Icon={MessageCircle} />
       </section>
     </div>

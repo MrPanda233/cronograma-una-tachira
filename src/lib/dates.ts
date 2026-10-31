@@ -26,6 +26,6 @@ export const dueDate = (ev: Evaluation) => (ev.kind === 'TSP' ? addDays(ev.dateS
 
 // La próxima fecha que le importa al estudiante: en un TSP, primero la publicación y luego la entrega.
 export const nextKeyDate = (ev: Evaluation, today: string) =>
-  ev.kind === 'TSP' && today < ev.dateStr ? ev.dateStr : dueDate(ev);
+  ev.kind === 'TSP' && today <= ev.dateStr ? ev.dateStr : dueDate(ev);
 
 export const isPending = (ev: Evaluation, today: string) => dueDate(ev) >= today;

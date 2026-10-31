@@ -48,6 +48,9 @@ export const EVALUATIONS: Evaluation[] = [
   { id: 14, ...AMB, kind: 'TP', evalType: 'TP2', description: 'Ecosistemas y desarrollo sustentable regional', dateStr: '2026-11-21', week: 'Sem. 47' },
 ];
 
+// Asignaturas que se entregan con enlace compartido (Google Docs, etc.) y no en PDF.
+export const LINK_DELIVERY_CODES = ['116'];
+
 // Asignaturas del semestre que todavía no tienen fechas cargadas.
 export const MISSING_DATES: { career: CareerId; code: string; name: string }[] = [
   { career: '280', code: '107', name: 'Lógica' },

@@ -1,12 +1,12 @@
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import {
-  ArrowRight, Check, ChevronDown, CircleHelp, ExternalLink, FileText, Lightbulb, Mail, MessageCircle, Paperclip, Send, ShieldCheck, X,
+  ArrowRight, Check, ChevronDown, CircleHelp, ExternalLink, FileText, Lightbulb, Link2, Mail, MessageCircle, Paperclip, Send, ShieldCheck, X,
 } from 'lucide-react';
-import { ACTIVE_LAPSO, CAREERS, activeSubjects, type CareerId } from '../data/careers';
-import { CANAL_ESTUDIANTES_URL, EXAMENES_URL, MATERIAL_URL, TSP_URL, VALIDADOS_URL } from '../data/links';
+import { ACTIVE_LAPSO, activeSubjects, type CareerId } from '../data/careers';
+import { EXAMENES_URL, MATERIAL_URL, TSP_URL, VALIDADOS_URL } from '../data/links';
 import { ADVISORS, SEDE_EMAIL } from '../data/people';
-import { EVALUATIONS } from '../data/schedule';
+import { EVALUATIONS, LINK_DELIVERY_CODES } from '../data/schedule';
 import { Chips, CopyButton, EASE_OUT, SectionHeading, useUi } from './ui';
 
 /* ---------- Conceptos: TP, TSP, MR y plan de curso ---------- */
@@ -27,8 +27,8 @@ const CONCEPTS: Record<ConceptId, {
     example: '115 TP2: comprensión lectora y redacción académica. Fecha límite: 07/11/2026. Tienes semanas para trabajarlo, pero debes entregarlo ese día a más tardar.',
     steps: [
       { title: 'Descarga el enunciado', detail: 'Búscalo en la página del SDA con el código de tu asignatura. Revisa qué objetivos evalúa.' },
-      { title: 'Hazlo con calma', detail: 'Usa el plan de curso y el material instruccional. Cita tus fuentes si te lo piden.' },
-      { title: 'Envíalo por correo', detail: 'Un solo PDF a tu asesor, con copia a la sede, antes de la fecha límite.' },
+      { title: 'Hazlo con calma', detail: 'Usa el material instruccional y sigue lo que indique tu asesor. Cita tus fuentes si te lo piden.' },
+      { title: 'Envíalo por correo', detail: 'A tu asesor, con copia a la sede, antes de la fecha límite. Va en un solo PDF, salvo que tu asesor pida otra cosa, como en 116, que se entrega por enlace.' },
       { title: 'Prepárate para defenderlo', detail: 'El asesor puede convocarte a una verificación para que expliques tu trabajo.' },
     ],
   },
@@ -59,13 +59,13 @@ const CONCEPTS: Record<ConceptId, {
   plan: {
     short: 'Plan de curso',
     name: 'Plan de curso',
-    what: 'Es la guía de cada asignatura: objetivos, contenidos, cómo se evalúa, qué libros usar y qué debes entregar. Es lo primero que debes leer al inscribirte.',
+    what: 'Es el documento de la asignatura con sus objetivos y contenidos. Cada asesor indica cómo trabaja: algunos publican su propia metodología, como el de 116 en su blog. Siempre vale lo que diga tu asesor.',
     example: 'Abre la sección de tu carrera, elige el semestre y toca "Plan de curso" al lado de la asignatura. Se descarga en PDF.',
     steps: [
       { title: 'Busca tu carrera', detail: 'Entra en 281 o 280. Las asignaturas están ordenadas por semestre.' },
       { title: 'Descarga el plan', detail: 'Hay un botón por asignatura. No necesitas cuenta de Google.' },
-      { title: 'Mira cómo te evalúan', detail: 'Revisa si la asignatura lleva TP, TSP o prueba, y cuántos objetivos tiene.' },
-      { title: 'Anota tus fechas', detail: 'Cruza lo que leíste con el cronograma general para organizarte.' },
+      { title: 'Pregunta cómo evalúa tu asesor', detail: 'Revisa si la asignatura lleva TP, TSP o prueba. Si tu asesor tiene su propia metodología, sigue la suya.' },
+      { title: 'Anota tus fechas', detail: 'Cruza lo que sabes con el cronograma general para organizarte.' },
     ],
   },
 };
@@ -263,6 +263,7 @@ function EmailBuilder() {
   const [evalChoice, setEvalChoice] = useState('');
   const [name, setName] = useState('');
   const [cedula, setCedula] = useState('');
+  const [link, setLink] = useState('');
   const [segment, setSegment] = useState<number | null>(null);
 
   const subject = subjects.find(s => s.code === code) ?? subjects[0];
@@ -289,8 +290,10 @@ function EmailBuilder() {
 
   const subjectLine = segments.map(s => s.text).join('_');
   const fileName = `${subject.code}_${evalValue}_${cleanCedula || 'Cédula'}_${ACTIVE_LAPSO}.pdf`;
-  const ready = Boolean(cleanName && cleanCedula);
-  const body = `Buenos días, ${advisor.name}.\n\nLe envío mi ${evalValue} de la asignatura ${subject.code} ${subject.name}, lapso ${ACTIVE_LAPSO}.\n\nNombre: ${cleanName}\nCédula: ${cleanCedula}\n\nSaludos.`;
+  const byLink = LINK_DELIVERY_CODES.includes(subject.code);
+  const cleanLink = link.trim();
+  const ready = Boolean(cleanName && cleanCedula && (!byLink || cleanLink));
+  const body = `Buenos días, ${advisor.name}.\n\nLe envío mi ${evalValue} de la asignatura ${subject.code} ${subject.name}, lapso ${ACTIVE_LAPSO}.${byLink ? `\n\nEnlace: ${cleanLink}` : ''}\n\nNombre: ${cleanName}\nCédula: ${cleanCedula}\n\nSaludos.`;
   const mailto = `mailto:${advisor.email ?? ''}?cc=${encodeURIComponent(SEDE_EMAIL)}&subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(body)}`;
 
   return (
@@ -325,6 +328,11 @@ function EmailBuilder() {
           <Field label="Tu cédula" hint="Solo números, sin puntos.">
             <input value={cedula} onChange={e => setCedula(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="12345678" className={inputClass} />
           </Field>
+          {byLink && (
+            <Field label="Enlace de tu trabajo" hint="Comparte el documento para que el asesor pueda abrirlo y pega aquí el enlace.">
+              <input value={link} onChange={e => setLink(e.target.value)} inputMode="url" autoComplete="off" placeholder="https://docs.google.com/..." className={inputClass} />
+            </Field>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:p-5">
@@ -347,11 +355,19 @@ function EmailBuilder() {
               ))}
             </span>
           </PreviewRow>
-          <PreviewRow label="Archivo" value={fileName} copyLabel="Nombre del archivo copiado">
-            <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
-              <Paperclip className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" /> {fileName}
-            </span>
-          </PreviewRow>
+          {byLink ? (
+            <PreviewRow label="Enlace" value={cleanLink || 'Pega el enlace de tu trabajo'} copyLabel="Enlace copiado">
+              <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
+                <Link2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" /> {cleanLink || 'Pega el enlace de tu trabajo'}
+              </span>
+            </PreviewRow>
+          ) : (
+            <PreviewRow label="Archivo" value={fileName} copyLabel="Nombre del archivo copiado">
+              <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
+                <Paperclip className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" /> {fileName}
+              </span>
+            </PreviewRow>
+          )}
 
           <div className="mt-2 min-h-14 text-sm">
             <AnimatePresence mode="wait" initial={false}>
@@ -375,10 +391,10 @@ function EmailBuilder() {
             aria-disabled={!ready}
             className={`mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${ready ? 'bg-brand-700 text-white hover:bg-brand-800' : 'cursor-not-allowed bg-slate-100 text-slate-500'}`}
           >
-            <Send className="h-4 w-4" aria-hidden="true" /> {ready ? 'Abrir en mi correo' : 'Escribe tu nombre y tu cédula'}
+            <Send className="h-4 w-4" aria-hidden="true" /> {ready ? 'Abrir en mi correo' : byLink ? 'Completa tus datos y el enlace' : 'Escribe tu nombre y tu cédula'}
           </a>
           <p className="mt-2 text-xs text-slate-500">
-            El PDF lo adjuntas tú antes de enviar. Si tu asesor pide otro formato, usa el suyo.
+            {byLink ? 'El enlace ya va dentro del mensaje. Cada objetivo va en un correo aparte.' : 'El PDF lo adjuntas tú antes de enviar. Si tu asesor pide otro formato, usa el suyo.'}
           </p>
         </div>
       </div>
@@ -387,8 +403,8 @@ function EmailBuilder() {
         <p className="mb-2 font-bold text-ink">Errores que debes evitar</p>
         <ul className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
           {[
-            `Olvidar la copia a la sede. El correo lleva "cl": ${SEDE_EMAIL}. Algunos documentos lo escriben sin "cl".`,
-            'Enviar fotos o varios archivos. Va un solo PDF.',
+            'Olvidar la copia a la sede.',
+            'Enviar fotos o varios archivos. Va un solo PDF, o el enlace si tu asesor trabaja así.',
             'Cambiar el orden del asunto o del nombre del archivo.',
             'Dejarlo para el último minuto, sobre todo en un TSP.',
           ].map(text => (
@@ -416,6 +432,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   { q: '¿Qué es el SDA y dónde veo los TSP?', a: <>Es el Subprograma de Diseño Académico de la UNA. Publica los planes de curso, los TP, los TSP y los modelos de respuesta. Aquí está su <Ext href={TSP_URL}>página de TSP</Ext>.</> },
   { q: '¿La fecha de un TSP es para entregarlo?', a: <>No. En el cronograma esa fecha es la publicación. Desde ese momento corre el plazo, normalmente 24 horas. Este portal te muestra las dos fechas, pero el plazo exacto es el que indica el enunciado.</> },
   { q: '¿Qué es la verificación?', a: <>Después de entregar, el asesor puede convocarte, en persona o por internet, para que expliques tu trabajo. Si te convoca y no vas, pierdes ese objetivo. Por eso conviene entender lo que entregas.</> },
+  { q: '¿Por qué 116 se entrega distinto?', a: <>El Ing. Danny Colmenares trabaja con su propia metodología, publicada en su blog. Los trabajos se hacen en herramientas en línea, como Google Docs, y se entrega el enlace compartido en vez de un PDF. Cada objetivo va en un correo aparte, con tu nombre, cédula, asignatura y objetivo.</> },
   { q: '¿Qué significan U.C. y "requiere"?', a: <>U.C. son unidades de crédito: el peso de cada asignatura. "Requiere" es la prelación: la asignatura que debes aprobar antes de inscribir esta. Hay un máximo de U.C. por semestre: 22 en la 281 y 24 en la 280.</> },
   { q: '¿Las carreras 281 y 280 ven lo mismo?', a: <>No todo. Comparten varias asignaturas, pero la 117 es del Semestre I en la 281 y del Semestre III en la 280, y la 107 Lógica solo está en la 280. En los trabajos de la 280, algunos los corrige un profesor de nivel central.</> },
   { q: '¿Cómo sé si estoy inscrito?', a: <>Consulta el <Ext href={VALIDADOS_URL}>listado de alumnos validados</Ext>.</> },
@@ -466,11 +483,11 @@ function Faq() {
         <div className="flex items-start gap-3">
           <FileText className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
           <p className="text-sm text-slate-700">
-            <strong className="text-ink">¿Sigues con dudas?</strong> Pregúntale a tu asesor o escribe a tus compañeros de {CAREERS['281'].id} y {CAREERS['280'].id}.
+            <strong className="text-ink">¿Sigues con dudas?</strong> Pregúntale a tu asesor o deja tu pregunta en los comentarios.
           </p>
         </div>
-        <a href={CANAL_ESTUDIANTES_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3.5 text-sm font-bold text-emerald-800 ring-1 ring-inset ring-emerald-300 transition-colors hover:bg-emerald-50">
-          <MessageCircle className="h-4 w-4" aria-hidden="true" /> Canal de estudiantes
+        <a href="#comentarios" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3.5 text-sm font-bold text-brand-700 ring-1 ring-inset ring-blue-200 transition-colors hover:bg-blue-50">
+          <MessageCircle className="h-4 w-4" aria-hidden="true" /> Ir a los comentarios
         </a>
       </div>
     </section>
