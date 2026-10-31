@@ -3,7 +3,8 @@
 export const MAX_BODY = 500;
 export const MIN_BODY = 2;
 export const MIN_FILL_MS = 3000;
-export const MAX_EDITS = 5;
+// Como en WhatsApp: un comentario se puede editar durante 15 minutos.
+export const EDIT_WINDOW_MS = 15 * 60_000;
 
 // Solo se puede comentar con estos nombres: así nadie puede usar un nick obsceno.
 export const NICKS = [
@@ -43,18 +44,25 @@ export type NickId = (typeof NICKS)[number]['id'];
 
 export const isNick = (id: unknown): id is NickId => NICKS.some(n => n.id === id);
 
+// Cada nombre es único: el segundo en elegirlo es "Búho del TSP 2", el tercero "3" y así.
+export const nickName = (id: string, seq = 1) => {
+  const base = NICKS.find(n => n.id === id)?.name ?? 'Estudiante';
+  return seq > 1 ? `${base} ${seq}` : base;
+};
+
 export const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 
 export interface CommentDto {
   id: string;
   parentId: string | null;
   nick: string;
-  tag: string;
+  seq: number;
   body: string;
   createdAt: number;
   edited: boolean;
   removed: 'user' | 'reports' | null;
   own: boolean;
+  editMsLeft: number;
   reactions: Record<string, number>;
   mine: string | null;
   replies: CommentDto[];
@@ -62,7 +70,7 @@ export interface CommentDto {
 
 export interface Identity {
   nick: string;
-  tag: string;
+  seq: number;
 }
 
 export interface CommentsPage {
@@ -70,6 +78,7 @@ export interface CommentsPage {
   nextCursor: number | null;
   canPost: boolean;
   me: Identity | null;
+  taken: Record<string, number>;
 }
 
 export interface CaptchaChallenge {

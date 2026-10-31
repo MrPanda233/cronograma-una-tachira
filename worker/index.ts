@@ -6,14 +6,14 @@
 // 3. Límites por visitante y límite global.
 // 4. Filtro de código, groserías, enlaces, correos, cédulas y teléfonos.
 // 5. Comentarios repetidos bloqueados.
-// 6. Solo nicks predeterminados, y uno solo por persona.
+// 6. Solo nicks predeterminados, uno por persona y numerados para que ninguno se repita.
 // 7. Retiro automático al llegar al límite de reportes (REPORT_LIMIT).
 //
 // Quién es quién:
 // - Sesión: cookie firmada por navegador, que JavaScript no puede leer. Decide de quién es cada
 //   comentario, y por eso solo su autor puede editarlo o eliminarlo.
 // - IP y dispositivo: se detectan, pero se guardan cifrados. Nunca se guarda la IP real.
-import { MAX_EDITS, MIN_FILL_MS, REACTIONS, isNick, type CommentDto, type CommentsPage, type Identity } from '../shared/comments';
+import { EDIT_WINDOW_MS, MIN_FILL_MS, REACTIONS, isNick, type CommentDto, type CommentsPage, type Identity } from '../shared/comments';
 import { createChallenge, issuePass, readPass, readToken, sameText, sign } from './captcha';
 import { fingerprint, reviewBody } from './moderation';
 
@@ -35,7 +35,7 @@ interface CommentRow {
   id: string;
   parent_id: string | null;
   nick: string;
-  tag: string;
+  seq: number;
   body: string;
   created_at: number;
   status: string;
@@ -51,7 +51,7 @@ const PAGE_SIZE = 20;
 const MAX_REQUEST_BYTES = 4096;
 const DEFAULT_REPORT_LIMIT = 3;
 const SESSION_DAYS = 365;
-const COLUMNS = 'id, parent_id, nick, tag, body, created_at, status, owner, edited_at';
+const COLUMNS = 'id, parent_id, nick, seq, body, created_at, status, owner, edited_at';
 
 const LIMITS = {
   commentsShort: { max: 3, window: 10 * MINUTE },
@@ -60,7 +60,7 @@ const LIMITS = {
   reactions: { max: 40, window: 10 * MINUTE },
   reportsDay: { max: 15, window: DAY },
   captchaFailures: { max: 8, window: 10 * MINUTE },
-  identityMemory: { window: 30 * DAY },
+  identityMemory: { window: 7 * DAY },
 };
 
 const json = (data: unknown, status = 200) =>
@@ -114,12 +114,28 @@ async function readVisitor(request: Request, key: CryptoKey): Promise<Visitor> {
 // El nombre queda fijo con el primer comentario. Si alguien borra la cookie o usa modo incógnito,
 // el mismo navegador en la misma conexión conserva su nombre.
 async function findIdentity(visitor: Visitor, env: Env): Promise<Identity | null> {
-  const own = await env.DB.prepare(`SELECT nick, tag FROM identities WHERE id = ?`).bind(visitor.session).first<Identity>();
+  const own = await env.DB.prepare(`SELECT nick, seq FROM identities WHERE id = ?`).bind(visitor.session).first<Identity>();
   if (own) return own;
   return env.DB
-    .prepare(`SELECT nick, tag FROM identities WHERE device = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1`)
+    .prepare(`SELECT nick, seq FROM identities WHERE device = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1`)
     .bind(visitor.device, Date.now() - LIMITS.identityMemory.window)
     .first<Identity>();
+}
+
+// Guarda el nombre de quien comenta por primera vez. El contador garantiza que nadie repita número,
+// aunque dos personas elijan el mismo nombre a la vez.
+async function saveIdentity(visitor: Visitor, nick: string, known: Identity | null, env: Env): Promise<Identity> {
+  const seq = known?.seq ?? (await env.DB
+    .prepare(`INSERT INTO nick_counters (nick, last) VALUES (?, 1)
+              ON CONFLICT (nick) DO UPDATE SET last = last + 1 RETURNING last`)
+    .bind(nick)
+    .first<{ last: number }>())?.last ?? 1;
+  await env.DB
+    .prepare(`INSERT OR IGNORE INTO identities (id, device, ip_hash, nick, tag, seq, created_at) VALUES (?, ?, ?, ?, '', ?, ?)`)
+    .bind(visitor.session, visitor.device, visitor.ipHash, nick, seq, Date.now())
+    .run();
+  const saved = await env.DB.prepare(`SELECT nick, seq FROM identities WHERE id = ?`).bind(visitor.session).first<Identity>();
+  return saved ?? { nick, seq };
 }
 
 const canPost = (env: Env) => env.COMMENTS_OPEN !== 'false';
@@ -195,6 +211,8 @@ async function usePass(pass: unknown, visitor: Visitor, key: CryptoKey, env: Env
   return used.meta.changes === 0 ? retry('Ese captcha ya se usó. Resuelve otro.') : null;
 }
 
+const editMsLeft = (createdAt: number) => Math.max(0, createdAt + EDIT_WINDOW_MS - Date.now());
+
 async function listComments(url: URL, visitor: Visitor, env: Env): Promise<CommentsPage> {
   const cursor = Number(url.searchParams.get('cursor')) || Number.MAX_SAFE_INTEGER;
   // Un comentario retirado sigue en la lista solo si tiene respuestas visibles.
@@ -231,12 +249,13 @@ async function listComments(url: URL, visitor: Visitor, env: Env): Promise<Comme
       id: row.id,
       parentId: row.parent_id,
       nick: row.nick,
-      tag: row.tag,
+      seq: row.seq,
       body: removed ? '' : row.body,
       createdAt: row.created_at,
       edited: Boolean(row.edited_at),
       removed,
       own: !removed && row.owner === visitor.session,
+      editMsLeft: !removed && row.owner === visitor.session ? editMsLeft(row.created_at) : 0,
       reactions: removed ? {} : Object.fromEntries(own.map(r => [r.emoji, r.n])),
       mine: own.find(r => r.own)?.emoji ?? null,
       replies: [],
@@ -251,6 +270,7 @@ async function listComments(url: URL, visitor: Visitor, env: Env): Promise<Comme
     nextCursor: hasMore ? page[page.length - 1].created_at : null,
     canPost: canPost(env),
     me: await findIdentity(visitor, env),
+    taken: Object.fromEntries((await env.DB.prepare(`SELECT nick, last FROM nick_counters`).all<{ nick: string; last: number }>()).results.map(n => [n.nick, n.last])),
   };
 }
 
@@ -309,16 +329,14 @@ async function createComment(request: Request, visitor: Visitor, key: CryptoKey,
   if (passError) return passError;
 
   const id = crypto.randomUUID();
-  const tag = identity?.tag ?? visitor.device.slice(0, 3).toUpperCase();
-  await env.DB.batch([
-    env.DB.prepare(`INSERT OR IGNORE INTO identities (id, device, ip_hash, nick, tag, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(visitor.session, visitor.device, visitor.ipHash, nick, tag, now),
-    env.DB.prepare(`INSERT INTO comments (id, parent_id, nick, tag, body, fingerprint, visitor, owner, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, parentId, nick, tag, body, print, visitor.device, visitor.session, visitor.ipHash, now),
-  ]);
+  const me = await saveIdentity(visitor, nick, identity, env);
+  await env.DB
+    .prepare(`INSERT INTO comments (id, parent_id, nick, tag, seq, body, fingerprint, visitor, owner, ip_hash, created_at) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, parentId, me.nick, me.seq, body, print, visitor.device, visitor.session, visitor.ipHash, now)
+    .run();
 
-  const comment: CommentDto = { id, parentId, nick, tag, body, createdAt: now, edited: false, removed: null, own: true, reactions: {}, mine: null, replies: [] };
-  return json({ comment, me: { nick, tag } }, 201);
+  const comment: CommentDto = { id, parentId, nick: me.nick, seq: me.seq, body, createdAt: now, edited: false, removed: null, own: true, editMsLeft: EDIT_WINDOW_MS, reactions: {}, mine: null, replies: [] };
+  return json({ comment, me }, 201);
 }
 
 async function editComment(id: string, request: Request, visitor: Visitor, env: Env) {
@@ -326,12 +344,12 @@ async function editComment(id: string, request: Request, visitor: Visitor, env: 
   if (typeof data?.body !== 'string') return fail('Escribe tu comentario.');
 
   const row = await env.DB
-    .prepare(`SELECT owner, status, edits FROM comments WHERE id = ?`)
+    .prepare(`SELECT owner, status, created_at FROM comments WHERE id = ?`)
     .bind(id)
-    .first<{ owner: string | null; status: string; edits: number }>();
+    .first<{ owner: string | null; status: string; created_at: number }>();
   if (!row || row.status !== 'visible') return fail('Ese comentario ya no está disponible.', 404);
   if (row.owner !== visitor.session) return fail('Solo puedes editar tus propios comentarios.', 403);
-  if (row.edits >= MAX_EDITS) return fail('Ya no puedes editar más este comentario.', 429);
+  if (editMsLeft(row.created_at) === 0) return fail('Ya pasaron los 15 minutos para editar este comentario.', 403);
 
   const body = data.body.normalize('NFC').trim();
   const rejection = reviewBody(body);

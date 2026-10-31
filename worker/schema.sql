@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id TEXT REFERENCES comments(id),
   nick TEXT NOT NULL,
   tag TEXT NOT NULL,
+  seq INTEGER NOT NULL DEFAULT 1,
   body TEXT NOT NULL,
   fingerprint TEXT NOT NULL,
   visitor TEXT NOT NULL,
@@ -62,9 +63,16 @@ CREATE TABLE IF NOT EXISTS identities (
   ip_hash TEXT NOT NULL,
   nick TEXT NOT NULL,
   tag TEXT NOT NULL,
+  seq INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_identities_device ON identities(device, created_at);
+
+-- Último número usado de cada nombre: Búho del TSP, Búho del TSP 2, 3...
+CREATE TABLE IF NOT EXISTS nick_counters (
+  nick TEXT PRIMARY KEY,
+  last INTEGER NOT NULL
+);
 
 -- Registro de lo que hizo la moderación automática.
 CREATE TABLE IF NOT EXISTS moderation_log (
@@ -80,7 +88,7 @@ CREATE VIEW IF NOT EXISTS reportes AS
 SELECT
   c.id AS comentario,
   c.nick AS nombre,
-  c.tag AS etiqueta,
+  c.seq AS numero,
   c.body AS texto,
   CASE c.status WHEN 'hidden' THEN 'retirado' WHEN 'deleted' THEN 'eliminado por su autor' ELSE 'visible' END AS estado,
   COUNT(r.visitor) AS reportes,

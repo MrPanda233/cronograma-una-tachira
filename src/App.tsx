@@ -247,7 +247,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs text-blue-100/75 sm:flex-row sm:items-center sm:justify-between">
-                  <p>Sitio no oficial</p>
+                  <p>Sitio no oficial. Emojis: Twemoji, CC-BY 4.0.</p>
                   <p className="shrink-0">© 2026 Estudiantes del C.L. Táchira</p>
                 </div>
               </div>

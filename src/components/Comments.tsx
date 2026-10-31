@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { Check, Clock3, Flag, Loader2, Lock, MessageSquareText, MessagesSquare, Pencil, RefreshCw, Reply, Send, ShieldCheck, Smile, SmilePlus, Trash2, Undo2, X } from 'lucide-react';
-import { MAX_BODY, MIN_BODY, MIN_FILL_MS, NICKS, REACTIONS, type CaptchaChallenge, type CommentDto, type CommentsPage, type Identity, type NickId } from '../../shared/comments';
+import { MAX_BODY, MIN_BODY, MIN_FILL_MS, NICKS, REACTIONS, nickName, type CaptchaChallenge, type CommentDto, type CommentsPage, type Identity, type NickId } from '../../shared/comments';
 import { EMOJI_GROUPS } from '../data/emojis';
 import { Emoji, EmojiText } from './Emoji';
 import { EASE_OUT, SectionHeading, useUi } from './ui';
+
+// Con qué nombre comenta esta persona: el suyo si ya lo tiene, o el que le tocaría.
+interface Author {
+  nick: string;
+  seq: number;
+  locked: boolean;
+  taken: Record<string, number>;
+}
 
 const STORAGE_NICK = 'comentarios-nick';
 const STORAGE_RECENT = 'comentarios-emojis';
@@ -19,7 +27,7 @@ const writeStorage = (key: string, value: string) => {
   try { localStorage.setItem(key, value); } catch { /* sin memoria local */ }
 };
 
-const nickInfo = (id: string) => NICKS.find(n => n.id === id) ?? { id, name: 'Estudiante', emoji: '🎓' };
+const nickEmoji = (id: string) => NICKS.find(n => n.id === id)?.emoji ?? '🎓';
 
 const initialNick = (): NickId => {
   const saved = readStorage(STORAGE_NICK);
@@ -273,7 +281,7 @@ function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
   );
 }
 
-function NickPicker({ value, onChange, onClose }: { value: string; onChange: (id: NickId) => void; onClose: () => void }) {
+function NickPicker({ value, taken, onChange, onClose }: { value: string; taken: Record<string, number>; onChange: (id: NickId) => void; onClose: () => void }) {
   return (
     <m.div
       initial={{ opacity: 0, y: -6 }}
@@ -301,7 +309,7 @@ function NickPicker({ value, onChange, onClose }: { value: string; onChange: (id
             className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm font-bold transition-colors ${nick.id === value ? 'bg-brand-700 text-white' : 'bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:ring-blue-300'}`}
           >
             <Emoji char={nick.emoji} className="h-6 w-6" />
-            <span className="min-w-0 truncate">{nick.name}</span>
+            <span className="min-w-0 truncate">{nickName(nick.id, (taken[nick.id] ?? 0) + 1)}</span>
           </button>
         ))}
       </div>
@@ -309,9 +317,8 @@ function NickPicker({ value, onChange, onClose }: { value: string; onChange: (id
   );
 }
 
-function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocus, draftKey }: {
-  nick: string;
-  locked: boolean;
+function Composer({ author, onNick, parentId, onPosted, onCancel, autoFocus, draftKey }: {
+  author: Author;
   onNick: (id: NickId) => void;
   parentId?: string;
   onPosted: (comment: CommentDto, me: Identity | null) => void;
@@ -358,7 +365,8 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
   const length = [...body.trim()].length;
   const textReady = length >= MIN_BODY && length <= MAX_BODY;
   const canSend = textReady && Boolean(pass) && !sending;
-  const info = nickInfo(nick);
+  const name = nickName(author.nick, author.seq);
+  const emoji = nickEmoji(author.nick);
   const hint = !engaged ? null : !textReady ? 'Escribe tu comentario' : !pass ? 'Resuelve el captcha' : null;
 
   const submit = async () => {
@@ -369,7 +377,7 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
       const wait = MIN_FILL_MS - (Date.now() - (startedAt.current ?? 0));
       if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
       const result = await post<{ comment?: CommentDto; me?: Identity }>('/api/comments', {
-        nick,
+        nick: author.nick,
         body: body.trim(),
         pass,
         parentId,
@@ -380,7 +388,7 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
       setShowEmojis(false);
       startedAt.current = null;
       if (result.comment) onPosted(result.comment, result.me ?? null);
-      notify(parentId ? 'Respuesta publicada' : 'Comentario publicado', info.name);
+      notify(parentId ? 'Respuesta publicada' : 'Comentario publicado', result.comment ? nickName(result.comment.nick, result.comment.seq) : name);
       setCaptchaReset(n => n + 1);
       onCancel?.();
     } catch (reason) {
@@ -395,10 +403,10 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
   return (
     <div className={parentId ? 'mt-2 rounded-2xl bg-slate-50 p-3' : 'rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:p-5'}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        {locked ? (
+        {author.locked ? (
           <p className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-xl bg-blue-50 px-3 text-sm font-bold text-brand-800">
-            <Emoji char={info.emoji} className="h-6 w-6" />
-            <span className="min-w-0 truncate">{info.name}</span>
+            <Emoji char={emoji} className="h-6 w-6" />
+            <span className="min-w-0 truncate">{name}</span>
             <Lock className="h-3.5 w-3.5 shrink-0 text-brand-700" aria-label="Tu nombre es fijo" />
           </p>
         ) : (
@@ -406,11 +414,11 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
             type="button"
             onClick={() => setShowNicks(v => !v)}
             aria-expanded={showNicks}
-            aria-label={`${info.name}. Cambiar`}
+            aria-label={`${name}. Cambiar`}
             className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-xl bg-blue-50 px-3 text-sm font-bold text-brand-800 transition-colors hover:bg-blue-100"
           >
-            <Emoji char={info.emoji} className="h-6 w-6" />
-            <span className="min-w-0 truncate">{info.name}</span>
+            <Emoji char={emoji} className="h-6 w-6" />
+            <span className="min-w-0 truncate">{name}</span>
             <span className="shrink-0 font-normal text-brand-700">Cambiar</span>
           </button>
         )}
@@ -422,9 +430,9 @@ function Composer({ nick, locked, onNick, parentId, onPosted, onCancel, autoFocu
       </div>
 
       <AnimatePresence initial={false}>
-        {showNicks && !locked && (
+        {showNicks && !author.locked && (
           <div className="mb-3">
-            <NickPicker value={nick} onChange={onNick} onClose={() => setShowNicks(false)} />
+            <NickPicker value={author.nick} taken={author.taken} onChange={onNick} onClose={() => setShowNicks(false)} />
           </div>
         )}
       </AnimatePresence>
@@ -649,12 +657,11 @@ function EditBox({ comment, onSaved, onCancel }: { comment: CommentDto; onSaved:
   );
 }
 
-function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, onReply, onRemoved, isReply }: {
+function CommentItem({ comment, now, canPost, author, onNick, onUpdate, onReply, onRemoved, isReply }: {
   comment: CommentDto;
   now: number;
   canPost: boolean;
-  nick: string;
-  locked: boolean;
+  author: Author;
   onNick: (id: NickId) => void;
   onUpdate: (id: string, patch: Partial<CommentDto>) => void;
   onReply: (parentId: string, reply: CommentDto, me: Identity | null) => void;
@@ -666,7 +673,16 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
   const [confirming, setConfirming] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const info = nickInfo(comment.nick);
+  const [canEdit, setCanEdit] = useState(comment.editMsLeft > 0);
+  const name = nickName(comment.nick, comment.seq);
+
+  // El botón Editar desaparece solo cuando se cumplen los 15 minutos.
+  useEffect(() => {
+    setCanEdit(comment.editMsLeft > 0);
+    if (comment.editMsLeft <= 0) return;
+    const timer = setTimeout(() => setCanEdit(false), comment.editMsLeft);
+    return () => clearTimeout(timer);
+  }, [comment.editMsLeft]);
 
   const retire = (keepPlaceholder: boolean | undefined, removed: 'user' | 'reports') => {
     if (keepPlaceholder) onUpdate(comment.id, { removed, body: '', own: false, reactions: {}, mine: null });
@@ -678,7 +694,7 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
     setConfirmDelete(false);
     try {
       const result = await send<{ keepPlaceholder?: boolean }>('DELETE', `/api/comments/${comment.id}`);
-      notify('Comentario eliminado', info.name);
+      notify('Comentario eliminado', name);
       retire(result.keepPlaceholder, 'user');
     } catch (reason) {
       notify('No se pudo eliminar', reason instanceof Error ? reason.message : '');
@@ -711,12 +727,11 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
     >
       <div className="flex items-start gap-3">
         <span className={`flex shrink-0 items-center justify-center rounded-full bg-blue-50 ${isReply ? 'h-8 w-8' : 'h-10 w-10'}`}>
-          <Emoji char={info.emoji} className={isReply ? 'h-5 w-5' : 'h-6 w-6'} />
+          <Emoji char={nickEmoji(comment.nick)} className={isReply ? 'h-5 w-5' : 'h-6 w-6'} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-            <span className="font-bold text-ink">{info.name}</span>
-            <span className="text-xs tabular-nums text-slate-500" title="Identificador del visitante">#{comment.tag}</span>
+            <span className="font-bold text-ink">{name}</span>
             <time className="text-xs text-slate-500" dateTime={new Date(comment.createdAt).toISOString()}>{timeAgo(comment.createdAt, now)}</time>
             {comment.edited && !comment.removed && <span className="text-xs text-slate-500">editado</span>}
             {comment.own && <span className="rounded bg-blue-50 px-1.5 text-xs font-bold text-brand-700">Tú</span>}
@@ -729,7 +744,7 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
             <EditBox
               comment={comment}
               onCancel={() => setEditing(false)}
-              onSaved={body => { onUpdate(comment.id, { body, edited: true }); setEditing(false); notify('Comentario editado', info.name); }}
+              onSaved={body => { onUpdate(comment.id, { body, edited: true }); setEditing(false); notify('Comentario editado', name); }}
             />
           ) : (
             <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 [overflow-wrap:anywhere]"><EmojiText text={comment.body} /></p>
@@ -747,9 +762,11 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
           )}
           {comment.own ? (
             <>
-              <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand-700">
-                <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar
-              </button>
+              {canEdit && (
+                <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand-700">
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void remove()}
@@ -784,8 +801,7 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
             className={`overflow-hidden ${indent}`}
           >
             <Composer
-              nick={nick}
-              locked={locked}
+              author={author}
               onNick={onNick}
               parentId={comment.id}
               autoFocus
@@ -805,8 +821,7 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
                 comment={reply}
                 now={now}
                 canPost={canPost}
-                nick={nick}
-                locked={locked}
+                author={author}
                 onNick={onNick}
                 onUpdate={onUpdate}
                 onReply={onReply}
@@ -823,11 +838,11 @@ function CommentItem({ comment, now, canPost, nick, locked, onNick, onUpdate, on
 
 const RULES = [
   'No publiques tu cédula, teléfono ni correo.',
-  'No hace falta crear cuenta. Tu nombre queda fijo en este navegador.',
-  'Puedes editar o eliminar tus comentarios desde este navegador.',
+  'No hace falta crear cuenta. El nombre que elijas será siempre el tuyo.',
+  'Puedes editar un comentario durante 15 minutos y eliminarlo cuando quieras.',
 ];
 
-const EMPTY_PAGE: CommentsPage = { comments: [], nextCursor: null, canPost: false, me: null };
+const EMPTY_PAGE: CommentsPage = { comments: [], nextCursor: null, canPost: false, me: null, taken: {} };
 
 export function Comments() {
   const [page, setPage] = useState<CommentsPage>(EMPTY_PAGE);
@@ -912,8 +927,12 @@ export function Comments() {
   }, []);
 
   // El nombre lo decide el servidor en cuanto la persona comenta por primera vez.
-  const activeNick = page.me?.nick ?? nick;
-  const locked = Boolean(page.me);
+  const author: Author = {
+    nick: page.me?.nick ?? nick,
+    seq: page.me?.seq ?? (page.taken[nick] ?? 0) + 1,
+    locked: Boolean(page.me),
+    taken: page.taken,
+  };
 
   return (
     <section className="mb-10">
@@ -938,7 +957,7 @@ export function Comments() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
         <div className="min-w-0">
           {status === 'ready' && (page.canPost
-            ? <Composer nick={activeNick} locked={locked} onNick={setNick} onPosted={addComment} draftKey={STORAGE_DRAFT} />
+            ? <Composer author={author} onNick={setNick} onPosted={addComment} draftKey={STORAGE_DRAFT} />
             : (
               <p className="flex items-start gap-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-950 ring-1 ring-inset ring-amber-200">
                 <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -970,8 +989,7 @@ export function Comments() {
                     comment={comment}
                     now={now}
                     canPost={page.canPost}
-                    nick={activeNick}
-                    locked={locked}
+                    author={author}
                     onNick={setNick}
                     onUpdate={patch}
                     onReply={addReply}
@@ -1004,10 +1022,6 @@ export function Comments() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">
-            Un comentario con varios reportes se oculta solo.
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">Emojis de Twemoji, licencia CC-BY 4.0.</p>
         </aside>
       </div>
     </section>
