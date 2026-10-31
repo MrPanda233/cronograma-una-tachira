@@ -3,6 +3,7 @@
 export const MAX_BODY = 500;
 export const MIN_BODY = 2;
 export const MIN_FILL_MS = 3000;
+export const MAX_EDITS = 5;
 
 // Solo se puede comentar con estos nombres: así nadie puede usar un nick obsceno.
 export const NICKS = [
@@ -51,20 +52,31 @@ export interface CommentDto {
   tag: string;
   body: string;
   createdAt: number;
+  edited: boolean;
+  removed: 'user' | 'reports' | null;
+  own: boolean;
   reactions: Record<string, number>;
-  mine: string[];
+  mine: string | null;
   replies: CommentDto[];
+}
+
+export interface Identity {
+  nick: string;
+  tag: string;
 }
 
 export interface CommentsPage {
   comments: CommentDto[];
   nextCursor: number | null;
   canPost: boolean;
+  me: Identity | null;
 }
 
 export interface CaptchaChallenge {
   token: string;
   prompt: string;
+  kind: 'math' | 'letters';
+  length: number;
   image: string;
   width: number;
   height: number;

@@ -19,8 +19,11 @@ Los atiende el Worker de `worker/index.ts` con la base D1 `cronograma-comentario
 
 - El captcha es propio (`worker/captcha.ts`): operaciones y letras al azar dibujadas como imagen. No necesita claves externas; la clave de firmas la genera el Worker en la tabla `settings`.
 - Para probarlos en local: `npm run dev:worker`.
+- Los emojis son imágenes de [Twemoji](https://github.com/jdecked/twemoji) (CC-BY 4.0) en `public/emoji/`, para que se vean igual en todos los dispositivos. Si agregas uno a la lista, copia su SVG ahí.
 - `COMMENTS_OPEN: "false"` en `wrangler.jsonc` cierra los comentarios.
-- Para borrar un comentario: `UPDATE comments SET status = 'hidden' WHERE id = '...'`.
+- Quién es quién: una cookie firmada por navegador decide de quién es cada comentario. La IP y el dispositivo se guardan cifrados, nunca la IP real.
+- Reportes: `REPORT_LIMIT` en `wrangler.jsonc` fija cuántas personas distintas retiran un comentario. Para verlos: `SELECT * FROM reportes;` en la consola de D1. Lo automático queda en `moderation_log`.
+- Para retirar un comentario a mano: `UPDATE comments SET status = 'hidden' WHERE id = '...'`. Para devolverlo: `status = 'visible'`.
 
 ## Publicación
 

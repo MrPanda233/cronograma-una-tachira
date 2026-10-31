@@ -56,12 +56,18 @@ export default function App() {
   const [copied, setCopied] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; title: string; subtitle: string } | null>(null);
   const navRef = useRef<HTMLElement>(null);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
 
   // La fecha de referencia cambia a medianoche (hora de Venezuela).
   useEffect(() => {
     const timer = setInterval(() => setToday(getCaracasDateKey(new Date())), 60000);
     return () => clearInterval(timer);
   }, []);
+
+  // En celular las pestañas se deslizan: la activa siempre queda a la vista.
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [activeTab]);
 
   useEffect(() => {
     const onHashChange = () => setActiveTab(tabFromHash());
@@ -92,11 +98,10 @@ export default function App() {
 
   const ui = useMemo(() => ({ notify, copy, copied }), [notify, copy, copied]);
 
-  const selectTab = (tab: (typeof TABS)[number], button: HTMLButtonElement) => {
+  const selectTab = (tab: (typeof TABS)[number]) => {
     setActiveTab(tab.id);
     notify('Pestaña seleccionada', tab.toast);
     window.history.replaceState(null, '', `#${tab.id}`);
-    button.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     const nav = navRef.current;
     if (nav && window.scrollY > nav.offsetTop) window.scrollTo({ top: nav.offsetTop });
   };
@@ -108,7 +113,7 @@ export default function App() {
           <div className="relative min-h-screen w-full max-w-full overflow-x-hidden bg-canvas font-sans text-ink antialiased">
 
             {/* NOTIFICACIÓN FLOTANTE */}
-            <div className="pointer-events-none fixed inset-x-3 top-3 z-[100] flex justify-end sm:inset-x-auto sm:right-5 sm:top-5" aria-live="polite">
+            <div className="pointer-events-none fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[100] flex justify-end sm:inset-x-auto sm:right-5 sm:top-5" aria-live="polite">
               <AnimatePresence>
                 {toast && (
                   <m.div
@@ -173,14 +178,15 @@ export default function App() {
 
             {/* PESTAÑAS */}
             <nav ref={navRef} className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85" aria-label="Secciones">
-              <div className="scrollbar-none mx-auto flex max-w-6xl justify-between gap-0.5 overflow-x-auto px-1 sm:justify-center sm:gap-2 sm:px-4">
+              <div data-scroll-x className="scrollbar-none mx-auto flex max-w-6xl justify-between gap-0.5 overflow-x-auto overscroll-x-contain px-2 [mask-image:linear-gradient(to_right,transparent,black_10px,black_calc(100%-22px),transparent)] sm:justify-center sm:gap-2 sm:px-4 sm:[mask-image:none]">
                 {TABS.map(tab => {
                   const active = activeTab === tab.id;
                   const { Icon } = tab;
                   return (
                     <button
                       key={tab.id}
-                      onClick={e => selectTab(tab, e.currentTarget)}
+                      ref={active ? activeTabRef : undefined}
+                      onClick={() => selectTab(tab)}
                       aria-current={active ? 'page' : undefined}
                       className={`relative flex min-h-12 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-1 py-3 text-sm font-bold transition-colors sm:px-3 ${active ? 'text-brand-800' : 'text-slate-500 hover:text-slate-900'}`}
                     >
@@ -224,7 +230,7 @@ export default function App() {
 
             {/* PIE DE PÁGINA */}
             <footer className="mt-4 w-full bg-brand-950 text-blue-100/80">
-              <div className="mx-auto max-w-6xl px-4 pb-6 pt-8 sm:px-6">
+              <div className="mx-auto max-w-6xl px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-8 sm:px-6">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-xl space-y-2 text-sm leading-relaxed">
                     <p className="text-base font-bold text-white">Cronograma de entregas, lapso {ACTIVE_LAPSO}</p>

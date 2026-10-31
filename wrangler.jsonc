@@ -18,7 +18,9 @@
   ],
   "vars": {
     // Interruptor para cerrar los comentarios sin tocar el código: "false".
-    "COMMENTS_OPEN": "true"
+    "COMMENTS_OPEN": "true",
+    // Reportes de personas distintas para retirar un comentario automáticamente.
+    "REPORT_LIMIT": "3"
   },
   "observability": { "enabled": true }
 }

@@ -15,12 +15,36 @@
 
 html {
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   scrollbar-color: #9fb3c8 var(--color-canvas);
 }
 
 ::selection {
   background: #bbdefb;
   color: var(--color-brand-800);
+}
+
+/* iOS acerca la página si un campo tiene letra menor de 16 px. */
+@media (pointer: coarse) {
+  input, textarea, select {
+    font-size: 16px;
+  }
+}
+
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* El texto de un control no se selecciona al mantener pulsado; el contenido sí. */
+button, [role="tab"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+button:not(:disabled):active {
+  opacity: 0.8;
 }
 
 :focus-visible {
@@ -44,6 +68,20 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   .alerta-hoy {
     animation: alerta-hoy 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes captcha-error {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .captcha-error {
+    animation: captcha-error 0.36s ease-in-out;
   }
 }
 

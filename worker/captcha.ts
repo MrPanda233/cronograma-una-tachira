@@ -98,20 +98,20 @@ function createPuzzle() {
   if (kind === 0) {
     const a = randomInt(2, 15);
     const b = randomInt(2, 15);
-    return { chars: [...`${a}+${b}=?`], answer: String(a + b), prompt: 'Resuelve la suma' };
+    return { chars: [...`${a}+${b}=?`], answer: String(a + b), prompt: 'Resuelve la suma', kind: 'math' as const };
   }
   if (kind === 1) {
     const a = randomInt(6, 20);
     const b = randomInt(1, a - 1);
-    return { chars: [...`${a}-${b}=?`], answer: String(a - b), prompt: 'Resuelve la resta' };
+    return { chars: [...`${a}-${b}=?`], answer: String(a - b), prompt: 'Resuelve la resta', kind: 'math' as const };
   }
   if (kind === 2) {
     const a = randomInt(2, 9);
     const b = randomInt(2, 6);
-    return { chars: [...`${a}x${b}=?`], answer: String(a * b), prompt: 'Resuelve la multiplicación' };
+    return { chars: [...`${a}x${b}=?`], answer: String(a * b), prompt: 'Resuelve la multiplicación', kind: 'math' as const };
   }
   const letters = Array.from({ length: 5 }, () => pick<string>(LETTERS));
-  return { chars: letters, answer: letters.join(''), prompt: 'Escribe las letras' };
+  return { chars: letters, answer: letters.join(''), prompt: 'Escribe las letras', kind: 'letters' as const };
 }
 
 export const normalizeAnswer = (answer: string) => answer.replace(/\s+/g, '').toUpperCase();
@@ -123,12 +123,32 @@ export async function sign(key: CryptoKey, text: string) {
 }
 
 const CAPTCHA_TTL = 10 * 60_000;
+const PASS_TTL = 15 * 60_000;
 
 export async function createChallenge(key: CryptoKey) {
   const puzzle = createPuzzle();
   const payload = `${crypto.randomUUID()}.${Date.now() + CAPTCHA_TTL}`;
   const signature = await sign(key, `${payload}|${normalizeAnswer(puzzle.answer)}`);
-  return { token: `${payload}.${signature}`, prompt: puzzle.prompt, ...renderImage(puzzle.chars) };
+  return { token: `${payload}.${signature}`, prompt: puzzle.prompt, kind: puzzle.kind, length: puzzle.answer.length, ...renderImage(puzzle.chars) };
+}
+
+export const sameText = (a: string, b: string) => {
+  let difference = a.length ^ b.length;
+  for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return difference === 0;
+};
+
+// Pase que se entrega al resolver el captcha. Permite publicar una sola vez.
+export async function issuePass(key: CryptoKey) {
+  const payload = `${crypto.randomUUID()}.${Date.now() + PASS_TTL}`;
+  return `${payload}.${await sign(key, `pase|${payload}`)}`;
+}
+
+export async function readPass(key: CryptoKey, pass: string) {
+  const [nonce, expires, signature, extra] = pass.split('.');
+  if (!nonce || !expires || !signature || extra !== undefined) return null;
+  const expected = await sign(key, `pase|${nonce}.${expires}`);
+  return sameText(expected, signature) ? { nonce, expiresAt: Number(expires) } : null;
 }
 
 // Comprueba la firma sin gastar la ficha. Devuelve los datos de la ficha, o null si no es válida.
@@ -136,7 +156,5 @@ export async function readToken(key: CryptoKey, token: string, answer: string) {
   const [nonce, expires, signature, extra] = token.split('.');
   if (!nonce || !expires || !signature || extra !== undefined) return null;
   const expected = await sign(key, `${nonce}.${expires}|${normalizeAnswer(answer)}`);
-  let difference = expected.length ^ signature.length;
-  for (let i = 0; i < expected.length; i++) difference |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
-  return { nonce, expiresAt: Number(expires), correct: difference === 0 };
+  return { nonce, expiresAt: Number(expires), correct: sameText(expected, signature) };
 }
