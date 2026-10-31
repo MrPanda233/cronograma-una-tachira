@@ -28,3 +28,11 @@ html {
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
