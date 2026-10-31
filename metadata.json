@@ -1,6 +1,5 @@
 {
-  "name": "Cronograma de Entregas UNA Táchira - Lapso 2026-2",
-  "description": "Cronograma de evaluaciones y entregas UNA Táchira.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Cronograma de Entregas 2026-2 · Estudiantes C.L. Táchira",
+  "description": "Cronograma de entregas hecho por estudiantes del Centro Local Táchira. Sitio no oficial de la UNA.",
+  "requestFramePermissions": []
 }

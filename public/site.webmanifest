@@ -1,6 +1,6 @@
 {
-  "name": "Cronograma de Entregas UNA Táchira",
-  "short_name": "Cronograma UNA",
+  "name": "Cronograma de Entregas · Estudiantes C.L. Táchira",
+  "short_name": "Cronograma",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0f4f8",
@@ -8,8 +8,8 @@
   "icons": [
     {
       "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "sizes": "1024x1024",
+      "type": "image/jpeg"
     }
   ]
 }

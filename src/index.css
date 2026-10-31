@@ -1,6 +1,30 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "@fontsource-variable/atkinson-hyperlegible-next";
 
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+@theme {
+  /* Atkinson Hyperlegible: distingue bien I, l y 1 (códigos como "Obj II.1" y fechas). */
+  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-950: #082238;
+  --color-brand-800: #0d47a1;
+  --color-brand-700: #1565c0;
+  --color-brand-600: #1976d2;
+  --color-canvas: #f0f4f8;
+  --color-ink: #10223a;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-color: #9fb3c8 var(--color-canvas);
+}
+
+::selection {
+  background: #bbdefb;
+  color: var(--color-brand-800);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: 6px;
 }

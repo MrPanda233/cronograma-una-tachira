@@ -1,7 +1,7 @@
 {
   "name": "cronograma-una-tachira",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
+    "motion": "^12.43.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },
