@@ -1,7 +1,7 @@
 // Servidor de comentarios. Todo lo que no empieza por /api/ lo sirve Cloudflare como archivo estático.
 //
 // Capas contra spam y bots:
-// 1. Captcha Turnstile verificado aquí en el servidor, en cada comentario.
+// 1. Captcha propio (worker/captcha.ts) verificado aquí en el servidor, en cada comentario.
 // 2. Campo trampa invisible y tiempo mínimo de escritura.
 // 3. Límites por visitante y límite global.
 // 4. Filtro de groserías, enlaces, correos, cédulas y teléfonos.
@@ -10,14 +10,12 @@
 // 7. Oculto automático con 3 reportes de personas distintas.
 // No se guarda la IP: solo una huella cifrada que no se puede revertir.
 import { MIN_FILL_MS, REACTIONS, isNick, type CommentDto, type CommentsPage } from '../shared/comments';
+import { createChallenge, readToken, sign } from './captcha';
 import { fingerprint, reviewBody } from './moderation';
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
-  TURNSTILE_SECRET?: string;
-  TURNSTILE_SITE_KEY?: string;
-  TURNSTILE_HOST?: string;
   COMMENTS_OPEN?: string;
 }
 
@@ -44,6 +42,7 @@ const LIMITS = {
   commentsGlobal: { max: 40, window: 10 * MINUTE },
   reactions: { max: 40, window: 10 * MINUTE },
   reportsDay: { max: 5, window: DAY },
+  captchaFailures: { max: 8, window: 10 * MINUTE },
 };
 
 const json = (data: unknown, status = 200) =>
@@ -59,19 +58,27 @@ const json = (data: unknown, status = 200) =>
 
 const fail = (error: string, status = 400) => json({ error }, status);
 
-const toHex = (buffer: ArrayBuffer) => [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
+let cachedKey: CryptoKey | null = null;
 
-// Huella del visitante: IP y navegador, cifrados con una clave secreta. No se guarda la IP.
-async function visitorId(request: Request, env: Env) {
-  if (!env.TURNSTILE_SECRET) return '';
-  const ip = request.headers.get('CF-Connecting-IP') ?? 'local';
-  const agent = request.headers.get('User-Agent') ?? '';
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.TURNSTILE_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${ip}|${agent}`));
-  return toHex(signature).slice(0, 32);
+// Clave secreta de firmas. La genera y la guarda el propio servidor; nunca sale por la API.
+async function signingKey(env: Env) {
+  if (cachedKey) return cachedKey;
+  const random = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('');
+  await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('hmac', ?)`).bind(random).run();
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'hmac'`).first<{ value: string }>();
+  if (!row) throw new Error('sin clave de firmas');
+  cachedKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(row.value), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return cachedKey;
 }
 
-const canPost = (env: Env) => env.COMMENTS_OPEN !== 'false' && Boolean(env.TURNSTILE_SECRET && env.TURNSTILE_SITE_KEY);
+// Huella del visitante: IP y navegador, cifrados con la clave secreta. No se guarda la IP.
+async function visitorId(request: Request, key: CryptoKey) {
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'local';
+  const agent = request.headers.get('User-Agent') ?? '';
+  return (await sign(key, `${ip}|${agent}`)).slice(0, 32);
+}
+
+const canPost = (env: Env) => env.COMMENTS_OPEN !== 'false';
 
 const sameOrigin = (request: Request) => request.headers.get('Origin') === new URL(request.url).origin;
 
@@ -92,16 +99,28 @@ async function countSince(env: Env, sql: string, ...params: (string | number)[])
   return row?.n ?? 0;
 }
 
-async function verifyTurnstile(token: string, request: Request, env: Env) {
-  const form = new FormData();
-  form.append('secret', env.TURNSTILE_SECRET ?? '');
-  form.append('response', token);
-  const ip = request.headers.get('CF-Connecting-IP');
-  if (ip) form.append('remoteip', ip);
-  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form });
-  const result = await response.json<{ success: boolean; hostname?: string }>();
-  if (!result.success) return false;
-  return !env.TURNSTILE_HOST || result.hostname === env.TURNSTILE_HOST;
+// Gasta la ficha: cada captcha sirve para un solo intento, acierte o no.
+async function checkCaptcha(token: unknown, answer: unknown, visitor: string, key: CryptoKey, env: Env) {
+  const retry = (error: string, status = 403) => json({ error, captcha: true }, status);
+  if (typeof token !== 'string' || typeof answer !== 'string' || !answer.trim()) return retry('Completa el captcha.');
+
+  const now = Date.now();
+  const failures = await countSince(env, `SELECT COUNT(*) AS n FROM captcha_used WHERE visitor = ? AND ok = 0 AND expires_at > ?`, visitor, now);
+  if (failures >= LIMITS.captchaFailures.max) return retry('Demasiados intentos. Espera unos minutos.', 429);
+
+  const read = await readToken(key, token, answer);
+  if (!read || !read.expiresAt) return retry('El captcha no es válido. Prueba con otro.');
+  if (now > read.expiresAt) return retry('El captcha venció. Prueba con otro.');
+
+  const used = await env.DB
+    .prepare(`INSERT OR IGNORE INTO captcha_used (nonce, visitor, ok, expires_at) VALUES (?, ?, ?, ?)`)
+    .bind(read.nonce, visitor, read.correct ? 1 : 0, read.expiresAt)
+    .run();
+  if (used.meta.changes === 0) return retry('Ese captcha ya se usó. Prueba con otro.');
+  if (!read.correct) return retry('Respuesta incorrecta. Prueba con otro.');
+
+  await env.DB.prepare(`DELETE FROM captcha_used WHERE expires_at < ?`).bind(now).run();
+  return null;
 }
 
 async function listComments(url: URL, visitor: string, env: Env): Promise<CommentsPage> {
@@ -154,11 +173,10 @@ async function listComments(url: URL, visitor: string, env: Env): Promise<Commen
     })),
     nextCursor: hasMore ? page[page.length - 1].created_at : null,
     canPost: canPost(env),
-    siteKey: canPost(env) ? env.TURNSTILE_SITE_KEY ?? null : null,
   };
 }
 
-async function createComment(request: Request, visitor: string, env: Env) {
+async function createComment(request: Request, visitor: string, key: CryptoKey, env: Env) {
   const data = await readJson(request);
   if (!data) return fail('No se pudo leer el comentario.');
 
@@ -204,9 +222,9 @@ async function createComment(request: Request, visitor: string, env: Env) {
     parentId = parent.parent_id ?? data.parentId;
   }
 
-  // El captcha va de último: su ficha es de un solo uso y no debe gastarse en un texto rechazado.
-  if (typeof data.token !== 'string' || !data.token) return fail('Completa el captcha.', 403);
-  if (!(await verifyTurnstile(data.token, request, env))) return fail('El captcha no se pudo verificar. Inténtalo otra vez.', 403);
+  // El captcha va de último: es de un solo uso y no debe gastarse en un texto rechazado.
+  const captchaError = await checkCaptcha(data.captcha, data.answer, visitor, key, env);
+  if (captchaError) return captchaError;
 
   const id = crypto.randomUUID();
   const tag = visitor.slice(0, 3).toUpperCase();
@@ -278,15 +296,17 @@ async function handleApi(request: Request, env: Env) {
   const parts = url.pathname.split('/').filter(Boolean); // api, comments, id, acción
   if (parts[1] !== 'comments' || parts.length > 4) return fail('No encontrado.', 404);
 
-  const visitor = await visitorId(request, env);
+  const key = await signingKey(env);
+  const visitor = await visitorId(request, key);
 
   if (request.method === 'GET' && parts.length === 2) return json(await listComments(url, visitor, env));
+  if (request.method === 'GET' && parts[2] === 'captcha' && parts.length === 3) return json(await createChallenge(key));
   if (request.method !== 'POST') return fail('Método no permitido.', 405);
 
   if (!sameOrigin(request)) return fail('Origen no permitido.', 403);
   if (!canPost(env)) return fail('Los comentarios están cerrados por ahora.', 503);
 
-  if (parts.length === 2) return createComment(request, visitor, env);
+  if (parts.length === 2) return createComment(request, visitor, key, env);
   if (parts[3] === 'reaction') return toggleReaction(parts[2], request, visitor, env);
   if (parts[3] === 'report') return reportComment(parts[2], visitor, env);
   return fail('No encontrado.', 404);

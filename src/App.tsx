@@ -228,8 +228,7 @@ export default function App() {
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-xl space-y-2 text-sm leading-relaxed">
                     <p className="text-base font-bold text-white">Cronograma de entregas, lapso {ACTIVE_LAPSO}</p>
-                    <p>Hecho por estudiantes, para estudiantes del Centro Local Táchira.</p>
-                    <p>Por ahora reúne las carreras TSU Higiene y Seguridad Industrial (281) e Ingeniería Industrial (280). Iremos sumando más carreras.</p>
+                    <p>Iremos sumando más carreras.</p>
                   </div>
                   <div className="space-y-1 text-sm md:text-right">
                     <p>Envía copia de cada entrega al correo de la sede:</p>
@@ -242,9 +241,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs text-blue-100/75 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="max-w-2xl">
-                    <strong className="text-blue-50">Sitio no oficial.</strong> No pertenece ni está avalado por la Universidad Nacional Abierta (UNA) ni por el Centro Local Táchira. La información válida es la que publica cada asesor.
-                  </p>
+                  <p>Sitio no oficial</p>
                   <p className="shrink-0">© 2026 Estudiantes del C.L. Táchira</p>
                 </div>
               </div>

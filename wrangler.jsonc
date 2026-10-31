@@ -17,9 +17,6 @@
     }
   ],
   "vars": {
-    // Clave pública del captcha. La clave secreta va aparte, como secreto del Worker (TURNSTILE_SECRET).
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAFtoUyckXGvLVIHH",
-    "TURNSTILE_HOST": "cronograma-una-tachira.hsi281.workers.dev",
     // Interruptor para cerrar los comentarios sin tocar el código: "false".
     "COMMENTS_OPEN": "true"
   },

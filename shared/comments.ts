@@ -60,5 +60,12 @@ export interface CommentsPage {
   comments: CommentDto[];
   nextCursor: number | null;
   canPost: boolean;
-  siteKey: string | null;
+}
+
+export interface CaptchaChallenge {
+  token: string;
+  prompt: string;
+  image: string;
+  width: number;
+  height: number;
 }

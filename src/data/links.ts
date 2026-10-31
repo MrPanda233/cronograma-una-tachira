@@ -21,5 +21,5 @@ export const DOCUMENT_LINKS = [
 
 export const WHATSAPP_LINKS = [
   { title: "Canal oficial de la UNA", url: "https://whatsapp.com/channel/0029Vb8aM1i8vd1HzhqrnB1a", host: "Canal de WhatsApp" },
-  { title: "Estudiantes Regulares UNA Táchira", url: "https://whatsapp.com/channel/0029VbCZE6RFy725RushIo1T", host: "Canal informativo de WhatsApp. Reenvía avisos de la UNA y del Centro Local" },
+  { title: "Estudiantes Regulares UNA Táchira", url: "https://whatsapp.com/channel/0029VbCZE6RFy725RushIo1T", host: "Canal de WhatsApp" },
 ];

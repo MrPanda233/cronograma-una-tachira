@@ -1,6 +1,21 @@
 -- Base de datos de comentarios (Cloudflare D1: cronograma-comentarios).
 -- `visitor` es una huella cifrada: nunca se guarda la IP.
 
+-- Clave de firmas del servidor. La crea el Worker; nunca sale por la API.
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Captchas ya usados: cada uno sirve para un solo intento.
+CREATE TABLE IF NOT EXISTS captcha_used (
+  nonce TEXT PRIMARY KEY,
+  visitor TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_captcha_visitor ON captcha_used(visitor, ok, expires_at);
+
 CREATE TABLE IF NOT EXISTS comments (
   id TEXT PRIMARY KEY,
   parent_id TEXT REFERENCES comments(id),

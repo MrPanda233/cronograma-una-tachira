@@ -1,24 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { Check, Clock3, Flag, MessageSquareText, MessagesSquare, RefreshCw, Reply, Send, ShieldCheck, Smile, SmilePlus, Undo2, X } from 'lucide-react';
-import { MAX_BODY, MIN_BODY, MIN_FILL_MS, NICKS, REACTIONS, type CommentDto, type CommentsPage, type NickId } from '../../shared/comments';
+import { MAX_BODY, MIN_BODY, MIN_FILL_MS, NICKS, REACTIONS, type CaptchaChallenge, type CommentDto, type CommentsPage, type NickId } from '../../shared/comments';
 import { EMOJI_GROUPS } from '../data/emojis';
 import { EASE_OUT, SectionHeading, useUi } from './ui';
 
 const STORAGE_NICK = 'comentarios-nick';
 const STORAGE_RECENT = 'comentarios-emojis';
 const REFRESH_MS = 45000;
-const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (el: HTMLElement, options: Record<string, unknown>) => string;
-      reset: (id: string) => void;
-      remove: (id: string) => void;
-    };
-  }
-}
 
 // localStorage puede fallar en modo privado: nunca debe romper la página.
 const readStorage = (key: string) => {
@@ -48,67 +37,101 @@ const timeAgo = (timestamp: number, now: number) => {
   return new Date(timestamp).toLocaleDateString('es-VE');
 };
 
+class CaptchaError extends Error {}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await response.json().catch(() => ({})) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error ?? 'No se pudo completar. Inténtalo otra vez.');
+  const data = await response.json().catch(() => ({})) as T & { error?: string; captcha?: boolean };
+  if (!response.ok) {
+    const message = data.error ?? 'No se pudo completar. Inténtalo otra vez.';
+    throw data.captcha ? new CaptchaError(message) : new Error(message);
+  }
   return data;
 }
 
-let turnstileScript: Promise<void> | null = null;
-
-// El captcha solo se descarga cuando alguien va a escribir.
-const loadTurnstile = () => {
-  turnstileScript ??= new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = TURNSTILE_SRC;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => { turnstileScript = null; reject(new Error('turnstile')); };
-    document.head.appendChild(script);
-  });
-  return turnstileScript;
-};
-
-function Captcha({ siteKey, onToken, resetKey }: { siteKey: string; onToken: (token: string | null) => void; resetKey: number }) {
-  const box = useRef<HTMLDivElement>(null);
-  const widget = useRef<string | null>(null);
+function Captcha({ answer, onAnswer, onToken, resetKey, inputId }: {
+  answer: string;
+  onAnswer: (value: string) => void;
+  onToken: (token: string | null) => void;
+  resetKey: number;
+  inputId: string;
+}) {
+  const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadTurnstile()
-      .then(() => {
-        if (cancelled || !box.current || !window.turnstile || widget.current) return;
-        widget.current = window.turnstile.render(box.current, {
-          sitekey: siteKey,
-          action: 'comment',
-          language: 'es',
-          theme: 'light',
-          size: 'flexible',
-          callback: (token: string) => onToken(token),
-          'expired-callback': () => onToken(null),
-          'error-callback': () => onToken(null),
-        });
-      })
-      .catch(() => setFailed(true));
-    return () => {
-      cancelled = true;
-      if (widget.current) window.turnstile?.remove(widget.current);
-      widget.current = null;
-    };
-  }, [siteKey, onToken]);
+  const load = useCallback(async () => {
+    setFailed(false);
+    onToken(null);
+    onAnswer('');
+    try {
+      const response = await fetch('/api/comments/captcha');
+      if (!response.ok) throw new Error('captcha');
+      const next = await response.json() as CaptchaChallenge;
+      setChallenge(next);
+      onToken(next.token);
+    } catch {
+      setFailed(true);
+    }
+  }, [onToken, onAnswer]);
 
-  useEffect(() => {
-    if (resetKey > 0 && widget.current) window.turnstile?.reset(widget.current);
-  }, [resetKey]);
+  useEffect(() => { void load(); }, [load, resetKey]);
 
-  if (failed) return <p className="text-sm text-red-700">No se pudo cargar el captcha. Revisa tu conexión y recarga la página.</p>;
-  return <div ref={box} className="min-h-[65px] w-full" />;
+  if (failed) {
+    return (
+      <button type="button" onClick={() => void load()} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-brand-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50">
+        <RefreshCw className="h-4 w-4" aria-hidden="true" /> Cargar el captcha
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <div>
+        <p className="mb-1 text-xs font-bold text-slate-600">{challenge?.prompt ?? 'Captcha'}</p>
+        <div className="flex items-center gap-1">
+          <div className="flex h-14 min-w-44 items-center overflow-hidden rounded-xl bg-slate-100">
+            <AnimatePresence mode="wait" initial={false}>
+              {challenge && (
+                <m.img
+                  key={challenge.token}
+                  src={challenge.image}
+                  alt="Captcha"
+                  width={challenge.width}
+                  height={challenge.height}
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0.08 } }}
+                  transition={{ duration: 0.18, ease: EASE_OUT }}
+                  className="block h-14 max-w-full"
+                  draggable={false}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+          <button type="button" onClick={() => void load()} aria-label="Cambiar captcha" title="Cambiar captcha" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-blue-50 hover:text-brand-700">
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <label className="block min-w-28 flex-1 sm:max-w-44" htmlFor={inputId}>
+        <span className="mb-1 block text-xs font-bold text-slate-600">Respuesta</span>
+        <input
+          id={inputId}
+          value={answer}
+          onChange={e => onAnswer(e.target.value)}
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={12}
+          className="min-h-11 w-full rounded-xl bg-white px-3 text-base uppercase text-ink ring-1 ring-inset ring-slate-300 transition-shadow focus:outline-none focus:ring-2 focus:ring-brand-600 sm:text-sm"
+        />
+      </label>
+    </div>
+  );
 }
 
 function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
@@ -237,6 +260,7 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
   const [showEmojis, setShowEmojis] = useState(false);
   const [showNicks, setShowNicks] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [answer, setAnswer] = useState('');
   const [captchaReset, setCaptchaReset] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -263,7 +287,7 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
   };
 
   const length = [...body.trim()].length;
-  const canSend = length >= MIN_BODY && length <= MAX_BODY && Boolean(token) && !sending;
+  const canSend = length >= MIN_BODY && length <= MAX_BODY && Boolean(token) && Boolean(answer.trim()) && !sending;
   const info = nickInfo(nick);
 
   const submit = async () => {
@@ -276,7 +300,8 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
       const result = await post<{ comment?: CommentDto }>('/api/comments', {
         nick,
         body: body.trim(),
-        token,
+        captcha: token,
+        answer,
         parentId,
         startedAt: startedAt.current,
         website: trap.current?.value ?? '',
@@ -286,13 +311,14 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
       startedAt.current = null;
       if (result.comment) onPosted(result.comment);
       notify(parentId ? 'Respuesta publicada' : 'Comentario publicado', info.name);
+      setCaptchaReset(n => n + 1);
       onCancel?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo publicar.');
+      // Si el problema fue del captcha, se pide uno nuevo. Si fue del texto, el captcha sigue sirviendo.
+      if (reason instanceof CaptchaError) setCaptchaReset(n => n + 1);
     } finally {
       setSending(false);
-      setToken(null);
-      setCaptchaReset(n => n + 1);
     }
   };
 
@@ -380,9 +406,15 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
         )}
       </AnimatePresence>
 
-      {engaged && page.siteKey && (
+      {engaged && (
         <div className="mt-3">
-          <Captcha siteKey={page.siteKey} onToken={setToken} resetKey={captchaReset} />
+          <Captcha
+            answer={answer}
+            onAnswer={setAnswer}
+            onToken={setToken}
+            resetKey={captchaReset}
+            inputId={parentId ? `captcha-${parentId}` : 'captcha-comentario'}
+          />
         </div>
       )}
 
@@ -394,7 +426,7 @@ function Composer({ page, nick, onNick, parentId, onPosted, onCancel, autoFocus 
           className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${canSend ? 'bg-brand-700 text-white hover:bg-brand-800' : 'cursor-not-allowed bg-slate-100 text-slate-500'}`}
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          {sending ? 'Publicando' : !engaged || length < MIN_BODY ? 'Publicar' : token ? 'Publicar' : 'Completa el captcha'}
+          {sending ? 'Publicando' : 'Publicar'}
         </button>
       </div>
     </div>
@@ -597,13 +629,11 @@ function CommentItem({ comment, now, page, nick, onNick, onUpdate, onReply, onRe
 }
 
 const RULES = [
-  'Respeta a todos. Sin groserías ni ofensas.',
   'No publiques tu cédula, teléfono ni correo.',
-  'No se permiten enlaces.',
-  'Eliges un nombre de la lista; no hace falta crear cuenta.',
+  'No hace falta crear cuenta: eliges un nombre de la lista.',
 ];
 
-const EMPTY_PAGE: CommentsPage = { comments: [], nextCursor: null, canPost: false, siteKey: null };
+const EMPTY_PAGE: CommentsPage = { comments: [], nextCursor: null, canPost: false };
 
 export function Comments() {
   const [page, setPage] = useState<CommentsPage>(EMPTY_PAGE);
@@ -703,7 +733,7 @@ export function Comments() {
         )}
       />
       <p className="-mt-2 mb-4 max-w-2xl text-sm text-slate-600">
-        Pregunta, comparte y ayuda a tus compañeros. Lo que escribas aquí es público y no lo revisa la UNA.
+        Lo que escribas aquí es público.
       </p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">

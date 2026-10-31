@@ -17,8 +17,8 @@ npm run dev
 
 Los atiende el Worker de `worker/index.ts` con la base D1 `cronograma-comentarios` (esquema en `worker/schema.sql`).
 
-- Para probarlos en local, crea `.dev.vars` con las claves de prueba de Turnstile y ejecuta `npm run dev:worker`.
-- En producción hacen falta dos valores: `TURNSTILE_SITE_KEY` (pública, en `wrangler.jsonc`) y `TURNSTILE_SECRET` (secreto del Worker, nunca en el repo). Sin ellos los comentarios se pueden leer, pero no publicar.
+- El captcha es propio (`worker/captcha.ts`): operaciones y letras al azar dibujadas como imagen. No necesita claves externas; la clave de firmas la genera el Worker en la tabla `settings`.
+- Para probarlos en local: `npm run dev:worker`.
 - `COMMENTS_OPEN: "false"` en `wrangler.jsonc` cierra los comentarios.
 - Para borrar un comentario: `UPDATE comments SET status = 'hidden' WHERE id = '...'`.
 
